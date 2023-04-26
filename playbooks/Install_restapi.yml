@@ -1,0 +1,140 @@
+---
+- name: Install API
+  hosts: main
+  remote_user: ubuntu
+  become: true
+  vars:
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=accept-new"
+    ansible_python_interpreter: /usr/bin/python3
+
+  tasks: 
+
+    - name: install aptitude 
+      apt:
+        name: aptitude
+        state: latest
+        update_cache: false
+
+    - name: apt-get update
+      ansible.builtin.apt:
+        update_cache: false 
+
+    - name: install required packages
+      apt:
+        pkg:
+          - curl
+          - apt-transport-https
+          - software-properties-common
+          - ca-certificates
+          - wget
+          - gnupg-agent
+          - python3
+          - python3-pip
+          - python3-setuptools
+          - tree
+          - virtualenv         
+        state: latest
+        update_cache: true
+
+    # - name: download apt key
+    #   shell: |
+    #     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    #     echo "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+    #     "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
+    #     sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    # - name: Add docker to sources.list
+    #   apt_repository:
+    #     repo: deb https://download.docker.com/linux/ubuntu bionic stable
+    #     state: present
+
+
+    - name: Add Docker GPG apt Key
+      apt_key:
+       url: https://download.docker.com/linux/ubuntu/gpg
+       state: present
+
+    - name: Add Docker Repository
+      apt_repository:
+       repo: deb https://download.docker.com/linux/ubuntu bionic stable
+       state: present
+
+
+    - name: install docker
+      apt:
+        pkg:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: latest
+        update_cache: false
+
+    - name: Install docker module for python
+      pip:
+        name: docker
+
+    - name: start docker
+      shell: |
+        systemctl enable docker
+        systemctl start docker
+    
+    - name: add ubuntu to docker group
+      ansible.builtin.user:
+        name: ubuntu
+        group: docker
+
+    - name: mkdir for dockerfile
+      shell: |
+        mkdir -p /home/ubuntu/restapi
+        chmod -R 777 /home/ubuntu/restapi
+        
+    - name: copy dockerfile from local to EC2
+      ansible.builtin.copy:
+        src: /Users/ericmaki/code/tf_restapi/code
+        dest: /home/ubuntu/restapi/
+        mode: '0777'
+
+    - name: build container image
+      docker_image:
+        name: restapi:1.0
+        build:
+          path: /home/ubuntu/restapi/code
+        source: build
+        state: present
+
+    - name: run container restapi
+      shell: docker run -dp 5000:5000 restapi:1.0
+
+
+    - name: open ports
+      community.general.ufw:
+        rule: allow
+        port: '22'
+        proto: tcp
+
+    - name: open ports
+      community.general.ufw:
+        rule: allow
+        port: '2375'
+        # proto: tcp
+
+    - name: open ports
+      community.general.ufw:
+        rule: allow
+        port: '5000'
+        # proto: tcp
+
+    - name: open ports
+      community.general.ufw:
+        rule: allow
+        port: '8080'
+        # proto: tcp
+
+
+    - name: enable ufw
+      community.general.ufw:
+        state: enabled
+
+
