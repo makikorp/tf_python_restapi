@@ -33,7 +33,8 @@ response:
   }
 ]
 
-
+Swagger is found at:
+<EC2 public ip>:5000/swagger-ui
 
 
 
